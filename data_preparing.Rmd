@@ -1,0 +1,179 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+# Project describe
+
+Задача: обучившись на одном человеке, модель должна уметь отличить его от других. То есть когда подаём на вход его записи - выдаё 1, во всех остальных случаях - 0
+
+## Dataset Information
+   --- Data are separated by participant
+   --- Each file contains the following information
+       ---- sequential number, x acceleration, y acceleration, z acceleration, label 
+   --- Labels are codified by numbers
+       --- 1: Working at Computer
+       --- 2: Standing Up, Walking and Going up-down stairs
+       --- 3: Standing
+       --- 4: Walking
+       --- 5: Going Up-Down Stairs
+       --- 6: Walking and Talking with Someone
+       --- 7: Talking while Standing  
+  
+## Useful paper
+
+### 1) Activity Recognition from Accelerometer Data.pdf  
+  
+### 2) [Person Recognition using Smartphones’ Accelerometer Data](https://arxiv.org/pdf/1711.04689.pdf)  
+  
+  
+### 3) [Machine Learning Methods for Classifying Human Physical Activity from On-Body Accelerometers](https://www.mdpi.com/1424-8220/10/2/1154/htm)  
+> Our results agree with the findings by [32], in spite of a slightly different approach to classifier construction. While they train each classifier by using examples from all tested subjects, we prefer to train separately one classifier for each subject, averaging the individual classification accuracies to yield the results shown in Tables 5, 6, and 7. We believe that a subject-specific training is important especially for the cHHM-based sequential classifier, because of the high mannerism exhibited by humans while performing a given physical activity.  
+
+## Workflow
+    
+...The input of our experiment is n positive points from the legitimate user and n negative data points from randomly selected n other users (Multi-sensor authentication to improve smartphone security)  
+  
+## Approaches to comparison time series
+cross-correlation
+frequency coherence,
+dynamic time warping
+autocorrelation  
+
+## Features  
+ 
+**Motion**  
++ Walking speed (m/s) or RMS of the Integral (RMS Velocity)  
++ Cadence (steps/min)  
+  
+**Statistic**  
+Mean
+Standard deviation
+Correlation  
+Median frequency
+Mode frequency corresponding to the dominant frequency
+First quartile
+Third quartile
+Interquartile range
+Centroid
+Kurtosis
+Skewness
+  
+**Geometry**  
++ Number of Zero crossings (after centering)  (sueur_j_sound_analysis_and_synthesis_with_r, p.421, 423)
++ Peak-to-peak value  
+
+
+**Signal Entropy** (sueur_j_sound_analysis_and_synthesis_with_r, p.299)  
++ spectral flatness measure  
++ spectral evenness  
++ frequency precision or resolution of the spectrum  
+  
+**Unclassified yet)**  
++ Energy(?) - (sueur_j_sound_analysis_and_synthesis_with_r, p.427)
++ frequency-domain entropy  
++ Crest Factor  
++ dominant frequency - the frequency of highest energy  
++ fundamental frequency  
++ formants frequency  
++ instantaneous frequency  ()
+  
+В якості фіч для розпізнання активностей між собою спробувати використати навігаційні параметри: швидкість (модуль швидкості), вектор сили тяжіння. Це можна використати для розрізнення режиму ходіння та підйому по сходах.
+
+## Questions  
+  
+1) How to make samples from series data?  
+What does it mean: "The feature vectors were built from 50%-overlapping sliding windows with 512 samples. Since the sampling frequency was 76.25 Hz, each data frame lasted 6.7 seconds, with every new frame available every 3.35 s"
+  
+## Initial data  
+Feature Extraction: The raw data is divided into identification intervals of 100 samples width with 50% overlap. 
+  
+Sampling freaquency: $f_s = 52 Hz$;  
+Number of samples (sliding window length): N = 100;  
+Length of data frame: $L = N \over f_s$ 2 sec max!  
+
+
+# **Work with data**  
+  
+Activity names:
+```{r}
+activity_vec <- c("Working_at_Computer",
+                  "Standing_Up+Walking+Going_up-down_stairs",
+                  "Standing",
+                  "Walking",
+                  "Going_Up-Down_Stairs",
+                  "Walking+Talking",
+                  "Talking_while_Standing")
+```
+Load raw data from one file to explore structure
+```{r, cache=TRUE}
+person1 <- read.csv("data/raw/1.csv")
+person1
+```
+Replace activities numbers with names:
+```{r}
+X1_to_activity <- seq(1:7)
+names(X1_to_activity) <- activity_vec
+```
+Make data variables more readable:
+```{r}
+person1 %>% 
+  filter(X1 > 0) %>% 
+  rename(ax = X1502, ay = X2215, az = X2153) %>% 
+  mutate(activity = names(X1_to_activity[X1])) %>% 
+  select(-X0, -X1) -> person1
+person1
+```
+## Activities summary:
+```{r}
+person1 %>% 
+  count(activity) %>% 
+  mutate(second = n / 52)
+```
+
+
+## Let's make graphs to see data patterns for each activity:
+  
+### Single activity 1
+
+```{r}
+person1 %>% 
+  filter(activity == 'Working_at_Computer') %>% 
+    ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
+    geom_line() +
+    coord_cartesian(xlim = c(2500, 30000)) 
+    #scale_x_log10()
+```
+
+```{r}
+person1 %>% #group = activity
+  filter(activity != "Standing_Up+Walking+Going_up-down_stairs") %>%   
+  ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
+    geom_line() +
+    facet_wrap(activity ~ ., scales = "free")
+```
+
+Working at computer, complex ampitude x^2+y^2+z^2
+```{r}
+person1 %>% 
+  filter(X1 == 1) %>% 
+    ggplot(aes(x = sqrt(X1502^2 + X2215^2 + X2153^2), X0)) +
+      geom_line() +
+      coord_cartesian(xlim = c(3500, 3900))
+```
+
+## 2. Standing Up, Walking and Going up\down stairs
+```{r}
+person1 %>% 
+  filter(X1 == 2) %>% 
+    ggplot(aes(X1502, X0)) +
+      geom_line() +
+      coord_cartesian(xlim = c(1750, 2100))
+```
+

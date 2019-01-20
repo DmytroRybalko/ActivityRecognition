@@ -1,0 +1,70 @@
+---
+title: "Andrij Tymofeiu"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+Тут будуть аналізуватися різні фічі для наших даних
+
+### !!! GET PERSON1 DATA FROM THE data_preparing.Rmd !!!
+
+Get data
+```{r}
+person1_fft <- readRDS("data/preprocessing/person1.rds")
+```
+Extract Walking data:
+```{r}
+(walking_data <- filter(person1_fft, activity == "Walking"))
+```
+And build plot:
+```{r}
+ax_ticks <- seq(0, 500, 100)
+walking_data %>% 
+  ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
+    geom_line() +
+    scale_x_continuous(breaks = ax_ticks * 52,
+                       labels = ax_ticks) +
+    xlab("sec")
+    #coord_cartesian(xlim = c(2500, 30000)) 
+```
+Let see range of 100 points
+```{r}
+walking_data %>% 
+  ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
+    geom_line() +
+    coord_cartesian(xlim = c(500, 800)) 
+```
+
+# Аналіз Фур'є для різних видів активностей однієї людини
+```{r}
+w_ax <- 2*pi*52
+ax_df <- walking_data$ax[500:20499] #827
+summary(ax_df)
+```
+Приберемо постійну складову з сигналу:
+```{r}
+ax1_fft <- fft(ax_df - mean(ax_df))
+spectrum(ax1_fft)
+```
+Частотний спектр "вручну"
+```{r}
+fspec0 <- Mod(ax1_fft)
+plot(fspec0, xlim = c(0, 20), type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)")
+```
+The same with ggplot2
+```{r}
+
+```
+
+
+We zoom in on the left half of the spectrum, and we multiply the amplitude values by 2 to keep the total amount of energy:
+```{r}
+fspec0.left <- 2*fspec0[1:(52/2)]
+plot(fspec0.left, type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)")
+```
+# Корреляційні функції для порівняння одного типу активністі для різних людей

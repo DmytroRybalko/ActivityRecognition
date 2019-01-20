@@ -1,0 +1,146 @@
+---
+title: "Features Extraction"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tibble)
+```
+
+# Intro
+  
+Here we'll extract features for our project.
+
+
+## **Features to be extracted:**  
+  
+Both time and frequency domain features are extracted. The Fast Fourier Transform (FFT) of the axial data of the identification windows for each of the axes is evaluated, which forms the base for all frequency domain features. The parameters extracted from the identification
+windows, which serve as the features for the classification problem are defined as follows:  
+  
+### Mean  
+
+The mean values of the triaxial accelerometer data within each window are calculated for both the raw data and the FFT data for each of the three axes, which gives us a set of six mean values, abstracting data in both time and frequency domains:  
+1) raw_mean_ax;  
+2) raw_mean_ay;  
+3) raw_mean_az;
+4) fft_mean_ax;  
+5) fft_mean_ay;  
+6) fft_mean_az;  
+    
+### Median
+
+The median is calculated in a similar way as the mean. The median values are calculated for each of the axes taken in a similar way for both time and frequency domains for each of the three axes:  
+7)  raw_median_ax;  
+8)  raw_median_ay;  
+9)  raw_median_az;
+10) fft_median_ax;  
+11) fft_median_ay;  
+12) fft_median_az;  
+  
+### Magnitude  
+
+The magnitude is defined as the average of the root mean square of the tri-axial data (both time and frequency domain), and is calculated as follows: $$M = \sum_{k = 1}^l{\sqrt{x_k^2 + y_k^2 + z_k^2}) over l$$,  
+where:  
+$x_k, y_k, z_k$ - Instantaneous acceleration values  
+l - Length of window (Length of data frame?)  
+
+The magnitude for frequency domain is calculated by putting instantaneous values of fourier transformed data in place of acceleration:  
+13) raw_mag_ax;  
+14) raw_mag_ay;  
+15) raw_mag_az;
+16) fft_mag_ax;  
+17) fft_mag_ay;  
+18) fft_mag_az; 
+  
+### Cross-correlation  
+
+The cross-correlation is defined as the ratio of mean of x axis and z axis data and that of y axis and z axis data. The z axis is selected as the frame of reference as it remains constant for almost all possible orientations of the smartphone, and the ratios are taken with respect to z axis. The cross correlation of z axis with x axis and y axis are mathematically defined as follows:  
+$Corr _xz = x_ mean \over z_ mean$;  
+$Corr _yz = y_ mean \over z_ mean$,  
+where:  
+$Corr _xz$ - Cross-correlation of x-axis & z-axis,  
+$Corr _yz$ - Cross-correlation of y-axis& z-axis  
+  
+19) corr_xz;  
+20) corr_yz;  
+
+CHOOSE RIGHT FRAME AXIS!!!
+
+### Peak Count  
+  
+Peak count for each axis refers to the number of local maxima for the axial data in the identification window. The average of the peak count over the three axes for the time domain data is selected as a feature  
+21) peak_ax;  
+22) peak_ay;  
+23) peak_az; 
+  
+### Distance between Peaks  
+
+Distance between peaks refers to the average time interval between two successive peaks in a window  
+24) peak_dist_ax;    
+25) peak_dist_ay;   
+26) peak_dist_az;  
+  
+### Spectral Centroid  
+Spectral centroid is a measure used to characterise a spectrum. In this case, spectrum refers to the identification window of acceleration values. It indicates where the center of mass of the spectrum is. The spectral centroid of each window for the three axes using the FFT values as weights is given by:  
+$Centroid = \sum_ { k = 1 }^l { x_tk f_tk } \over { l }$  
+where:  
+$x_tk$ - Instantaneous acceleration   
+$f_tk$ - Instantaneous value of FFT  
+l      - length of window  
+  
+27) spectral_centr_ax;  
+28) spectral_centr_ay;  
+29) spectral_centr_az;  
+  
+### Average Difference from Mean  
+
+The absolute difference from mean of the window for each axis (time domain) is calculated as follows:  
+$Diff_x = Avg( \abs{ x_t - x_mean } )$  
+where:  
+$Diff_x$ - Difference from mean   
+$x_t$    - Instantaneous acceleration  
+   
+30) diff_mean_ax;  
+31) diff_mean_ay;  
+32) diff_mean_az;  
+  
+### **Tibble template for features vector**  
+
+```{r}
+features <- tibble(raw_mean_ax = 0, raw_mean_ay = 0, raw_mean_az = 0,
+                   fft_mean_ax = 0, fft_mean_ay = 0, fft_mean_az = 0,
+                   raw_median_ax = 0, raw_median_ay = 0, raw_median_az = 0,
+                   fft_median_ax = 0, fft_median_ay = 0, fft_median_az = 0)
+```
+
+     
+## **Sliding window parameters**  
+
+The raw data is divided into identification intervals of 100 samples width with 50% overlap:  
+Sampling freaquency: $f_s = 52 Hz$ `r sample_Hz <- 52`  
+Number of samples (sliding window length): N = 100;  
+Length of data frame: $L = N \over f_s$ 2 sec max!
+```{r}
+#sample_Hz <- 52
+sample_N <- 100 
+overlap <- 0.5
+length_DF <- sample_N / sample_N
+```
+  
+# Code for feature extraction
+
+### Steps for data trasformation:  
+
+1. Read simple file  
+2. Transform data:  
+2.1 Rename variables  
+2.2 Add user id label-column  
+2.3 Select data for walking activity only (#4)  
+3. Calculate features for particular user  
+4. Repeat steps 1- 3 for all files (#1-10)  
+5. Combine features from different users in final tibble  
+6. Make csv file with features  
+  
+
