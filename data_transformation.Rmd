@@ -1,0 +1,155 @@
+---
+title: "Data Transformation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+# Steps for data trasformation:  
+
+1. Read files
+2. Combine data from 10 files for EDA
+3. Choose acceptable data range
+4. Make function for data transformation to:
+   Rename variables  
+   Add user id label-column  
+   Select data for walking activity only (#4)
+   Slice data for chosen data range
+5. Write csv file as base for features extraction
+  
+## 1. Read files  
+
+List of files:
+```{r}
+(all_files <- list.files("data/raw", pattern = "*.csv", full.names = T))
+```
+Filter list of files by regex:
+```{r}
+# Help info:
+# get all files          -  grep("\\b{0-9}\\b", bunch_files)
+# get file with "9"      -  grep("\\b9\\b", bunch_files)
+# get files from 1 to 10 -  grep("\\b(\\d|\\d0)\\b", bunch_files)
+# get files 1, 3, 7      -  grep("\\b[137]\\b", bunch_files)
+  
+grep(paste0("\\b", "(\\d|\\d0)", "\\b"), all_files) %>% # get position of files
+  map_chr(~ all_files[[.x]]) 
+```
+
+Read particular file (for testing):
+```{r}
+grep(paste0("\\b", 3, "\\b"), all_files) %>% # get position of files
+  map_chr(~ all_files[[.x]]) %>% 
+  read.csv() -> a121
+```
+Get list of necessary files (1 to 10):
+```{r}
+(my_files <- grep(paste0("\\b", "(\\d|\\d0)", "\\b"), all_files, value = TRUE))
+```
+  
+**Test read file**
+```{r, cache=TRUE}
+raw_user1 <- read.csv("data/raw/1.csv")
+raw_user1[1:10g]
+```
+
+## 2. Transform data:  
+
+```{r}
+a <- 3
+b <- nrow(raw_user1)
+raw_user1 %>%
+    rename(id = X0, ax = 2, ay = 3, az = 4, activity = X1) %>%
+    filter(activity == 4) %>%
+    slice(a:min(b, nrow(.)))  
+    #mutate(id2 = seq(1:(b - a + 1)))
+```
+Next step
+```{r}
+# raw_user1 %>%
+#     rename(id = X0, ax = 2, ay = 3, az = 4, activity = X1) %>%
+#     filter(activity == 4) %>%
+#     slice(a:b) %>% 
+#     mutate(id = seq(1:(b - a + 1)))
+```
+
+**Make function for data transformation:**
+```{r}
+transform_data <- function(df, user_id, activ_id, start_id, end_id) {
+  
+  df %>% 
+    rename(id = X0, ax = 2, ay = 3, az = 4, activity = X1) %>% 
+    filter(activity == activ_id) -> step1
+  # After filtering end_id will change so we need choose lowerest value
+  end_id <- min(end_id, nrow(step1))
+  
+  step1 %>% 
+    slice(start_id:end_id) %>% 
+    mutate(user_id = user_id, id = seq(1:(end_id - start_id + 1)))
+}
+transform_data(raw_user1, "1", 4, 100, 355)
+#transform_data(raw_user1, "1", 4, 1, nrow(raw_user1))
+```
+## 3. Make common dataset from chosen files  
+First test ...
+```{r}
+grep("\\b[137]\\b", all_files, value = TRUE) %>% 
+  map_dfr( ~ transform_data(read.csv(.), str_extract(., "\\d+"), 4, 1, nrow(.))) %>%
+  count(user_id)
+```
+
+### 3.1 Choose accectable data range
+
+**We need to choose range of "good" data for all user_id. For this let's build plots to visual estimation of data.**  
+Make dataset from  10 files for EDA:
+```{r, cache=TRUE}
+eda_df <- grep("\\b(\\d|\\d0)\\b", all_files, value = TRUE) %>% 
+  map_dfr( ~ transform_data(read.csv(.), str_extract(., "\\d+"), 4, 1, nrow(.)))
+eda_df
+```
+Make plots to see raw data by three axis. Full range:
+```{r, cache=TRUE}
+eda_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+Chose acceptable range:
+```{r, cache=TRUE}
+eda_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    coord_cartesian(xlim = c(4000, 20800)) +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+
+### 3.2 Recalculate final dataset based on acceptable data range
+
+Make dataset
+```{r, cache=TRUE}
+pre_features_df <- grep("\\b(\\d|\\d0)\\b", all_files, value = TRUE) %>% 
+  map_dfr( ~ transform_data(read.csv(.), str_extract(., "\\d+"), 4, 4000, 20800)) %>% 
+  select(-activity)
+pre_features_df
+```
+Build plot:
+```{r}
+pre_features_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+Save data into file  
+```{r, cache=TRUE}
+saveRDS(pre_features_df, "data/preprocessing/pre_features_activity4.rds")
+```
+

@@ -84,12 +84,12 @@ f <- 44100                         # sampling frequency
 t <- seq(1/f, 1, length.out=f)     # time
 T <- 1/440                         # 440 Hz period
 w0 <- 2*pi/T                       # 440 Hz angular frequency
-h0 <- 0.3*cos(w0*t)                # 440 Hz fundamental frequency
+h0 <- 1*cos(w0*t)                  # 440 Hz fundamental frequency
 h1 <- 2*cos(2*w0*t)                # 880 Hz harmonic
 h2 <- 3*sin(3*w0*t)                # 1320 Hz harmonic
 h3 <- -4*cos(4*w0*t)               # 1760 Hz harmonic
 h10 <- 10*sin(10*w0*t)             # 4400 Hz harmonic
-s <- 0.5 + h0 + h1 + h2 + h3 + h10 # final signal
+s <- 2.5 + h0 + h1 + h2 + h3 + h10 # final signal
 ```
 NOT CORRECT!!! Signal reconstruction  
 ```{r}
@@ -113,7 +113,7 @@ Figure 9.7 shows that the modulus of the Fourier transform is a symmetric, or mi
 We zoom in on the left half of the spectrum, and we multiply the amplitude values by 2 to keep the total amount of energy:
 ```{r}
 fspec.left <- 2*fspec[1:(f/2)]
-plot(fspec.left, type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)")
+plot(fspec.left, type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)", xlim = c(0, 5000))
 ```
 Identify peaks (manual)
 ```{r}
@@ -121,25 +121,108 @@ Identify peaks (manual)
 peaks <- c(0, 440, 880, 1320, 1760, 4400)
 ```
 
+## How to use spectrum() function 
+
+**[How to tune spectrum parameters]**(https://www.rdocumentation.org/packages/stats/versions/3.5.2/topics/spectrum)  
+**[How to tune spec.pgram parameters]**(https://www.rdocumentation.org/packages/stats/versions/3.5.2/topics/spec.pgram)  
+  
+Here we will repeat previous example using **spectrum()** function. Example that will helps us is here [Spectral analysis in R](https://ms.mcmaster.ca/~bolker/eeid/2010/Ecology/Spectral.pdf)  
+  
+The spectrum function defaults to a logarithmic scale for the spectrum, but we can change this by setting the log parameter to ”no”. The default frequency axis is in cycles per sampling interval. It is more intuitive to convert the frequency axis to cycles per unit time, we can do this by extracting the frequency values that R returns and dividing by the length of the sampling interval. We should also multiply the spectral density by 2 so that the area under the periodogram actually equals the variance of the time series.  
+
+> del<-0.1 # sampling interval
+  x.spec <- spectrum(x,log="no",span=10,plot=FALSE)
+  spx <- x.spec$freq/del
+  spy <- 2*x.spec$spec
+  plot(spy~spx,xlab="frequency",ylab="spectral density",type="l")
+
+Frequencies to observe: c(0, 440, 880, 1320, 1760, 4400)
+
+Detrending: we want to see constant value at zero frequency 
 ```{r}
-x.spec <- spectrum(fspec, log = "no", span = 5, plot = FALSE)
-spx <- x.spec$freq / T 
+del <- 1/f # 1/44100
+x.spec <- spectrum(s, log = "no", span = 10, plot = FALSE, detrend = F, demean = F)
+spx <- x.spec$freq / del  # or multipy by f
 spy <- 2*x.spec$spec
-plot(spy[1:100] ~ spx[1:100], xlab="frequency",ylab="spectral density",type="l")
+plot(spy ~ spx, xlab="frequency", ylab="spectral density", type="l", xlim = c(0, 2000), ylim = c(0, 20000))
 ```
-Explore spectrum function
+See x.spec parameters:
 ```{r}
-par(mfrow = c(2,2))
-plot(lh)
-spectrum(lh)
-spectrum(lh, spans = 3)
-spectrum(lh, spans = c(3,3))
-# spectrum(lh, spans = c(3,5))
-# 
-spectrum(ldeaths)
-# spectrum(ldeaths, spans = c(3,3))
-# spectrum(ldeaths, spans = c(3,5))
-# spectrum(ldeaths, spans = c(5,7))
-# spectrum(ldeaths, spans = c(5,7), log = "dB", ci = 0.8)
+str(x.spec)
 ```
+We want to replace constant value and all trends:
+```{r}
+del <- 1/f # 1/44100
+x.spec <- spectrum(s, log = "no", span = 10, plot = FALSE, detrend = T, demean = T)
+spx <- x.spec$freq / del  # or multipy by f
+spy <- 2*x.spec$spec
+plot(spy ~ spx, xlab="frequency", ylab="spectral density", type="l", xlim = c(0, 2000), ylim = c(0, 20000))
+```
+Compare the total energy of time and frequence domain:
+Time energy:
+```{r}
+sum(s^2)
+```
+Frequency energy by manual:
+```{r}
+1/length(fspec) * sum(fspec^2)
+```
+Frequency energy by spectrum() 
+```{r}
+ex.spec <- spectrum(s, log = "no", span = NULL, plot = FALSE, detrend = F, demean = F)
+1/length(ex.spec$spec) * sum(ex.spec$spec^2)
+```
+Frequencies to observe: c(0, 440, 880, 1320, 1760, 4400)  
+Pure spectrum() without log scale and  detrending
+```{r}
+sp0 <- spectrum(s, log = "no", span = NULL, plot = T)  #xlim = c(0, 0.1))
+```
+
+Pure spectrum() without log scale and with detrending
+```{r}
+sp1 <- spectrum(s, log = "no", span = 10, plot = T, xlim = c(0, 0.1))
+```
+What magnitude is on zero freaquency:
+```{r}
+sp1$spec[1]
+```
+Pure spectrum() without detrending
+```{r}
+sp2 <- spectrum(s, log = "no", span = 10, plot = T, detrend = F, demean = F, xlim = c(0, 0.1))
+```
+What magnitude is on zero frequency:
+```{r}
+sp2$spec[1]
+```
+
+# Autocorrelation
+  
+>The autocorrelation consists in a cross-correlation of the signal against itself after a certain time lag (see Sect. 17.1). In other words the successive correlations are computed between s[n] and s[n + m], where m is the time lag, usually set to one audio sample. It is expected that correlation returns a maximal value when m = Tf where Tf is the period of the fundamental frequency. (ch.13.1.2, p.405)  
+  
+```{r}
+ar1 <- spectrum(s, method = "ar", log = "no", plot = T, xlim = c(0, 0.1))
+```
+See ar1 parameters:
+```{r}
+str(ar1)
+```
+More comprehancive variant
+```{r}
+x.ac <- spectrum(s, method = "ar", log = "no", plot = FALSE)
+acx <- x.ac$freq * f  # or multipy by f
+acy <- 2*x.ac$spec
+plot(acy ~ acx, xlab="frequency", ylab="spectral density", type="l", xlim = c(0, 2000)) #, ylim = c(0, 20000))
+```
+Frequencies to observe: c(0, 440, 880, 1320, 1760, 4400)  
+
+Which frequency hax maximum:
+```{r}
+x.ac$freq[which.max(x.ac$spec)]*f
+```
+
+
+# Question
+
+1) Is it need normalization for raw data?
+2) Is it need detrending raw data for FFT?
 

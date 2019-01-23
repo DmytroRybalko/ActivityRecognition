@@ -7,64 +7,143 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
+library(zoo)
 ```
 
 Тут будуть аналізуватися різні фічі для наших даних
 
-### !!! GET PERSON1 DATA FROM THE data_preparing.Rmd !!!
+# Code for feature extraction
 
-Get data
-```{r}
-person1_fft <- readRDS("data/preprocessing/person1.rds")
+1. Test rollapply() from zoo package
+2. Calculate ...
+  
+# Get data
+
+```{r, cache=TRUE}
+data4features <- readRDS("data/preprocessing/pre_features_activity4.rds")
 ```
-Extract Walking data:
-```{r}
-(walking_data <- filter(person1_fft, activity == "Walking"))
-```
-And build plot:
-```{r}
-ax_ticks <- seq(0, 500, 100)
-walking_data %>% 
-  ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
-    geom_line() +
-    scale_x_continuous(breaks = ax_ticks * 52,
-                       labels = ax_ticks) +
-    xlab("sec")
-    #coord_cartesian(xlim = c(2500, 30000)) 
-```
-Let see range of 100 points
-```{r}
-walking_data %>% 
-  ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
-    geom_line() +
-    coord_cartesian(xlim = c(500, 800)) 
+Choose user 1 data:
+```{r, cache=TRUE}
+(user1 <- filter(data4features, user_id == 1))
 ```
 
-# Аналіз Фур'є для різних видів активностей однієї людини
+# Set sliding window parameters
+   
+The raw data is divided into identification intervals of 100 samples width with 50% overlap:  
+Sampling freaquency: $f_s = 52 Hz$;  
+Number of samples (sliding window length) $N = 100$;  
+Length of data frame: $L = N \over f_s$ (2 sec max!)
 ```{r}
-w_ax <- 2*pi*52
-ax_df <- walking_data$ax[500:20499] #827
-summary(ax_df)
-```
-Приберемо постійну складову з сигналу:
-```{r}
-ax1_fft <- fft(ax_df - mean(ax_df))
-spectrum(ax1_fft)
-```
-Частотний спектр "вручну"
-```{r}
-fspec0 <- Mod(ax1_fft)
-plot(fspec0, xlim = c(0, 20), type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)")
-```
-The same with ggplot2
-```{r}
-
+sample_Hz <- 52
+sample_N <- 100 
+overlap <- 0.5
+length_DF <- round(sample_N / sample_Hz)
 ```
 
+# 1. Test rollapply from zoo package
 
-We zoom in on the left half of the spectrum, and we multiply the amplitude values by 2 to keep the total amount of energy:
+So, for **rollapply** function, the raw data been divided into identification intervals of 4 samples width with 50% overlap will look like:  
+step 1: (4 + 5 + 7 + 4) / 4 = 5  
+step 2: (7 + 4 + 9 + 8) / 4 = 7  
+step 3: (9 + 8 + 4 + 3) / 4 = 6
 ```{r}
-fspec0.left <- 2*fspec0[1:(52/2)]
-plot(fspec0.left, type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)")
+TS <- zoo(c(4, 5, 7, 4, 9, 8, 4, 3))
+(ra <- rollapply(TS, width = 4, by = 2, FUN = mean))
 ```
-# Корреляційні функції для порівняння одного типу активністі для різних людей
+Convert to integer:
+```{r}
+as.numeric(ra)
+```
+
+## 1.2 Magnitude calculation
+
+Try to use geometric.mean from rollaply function 
+[like here](https://stackoverflow.com/questions/31093987/how-to-calculate-rolling-geometric-mean-since-inception-in-r)  
+  
+Set test environment
+```{r}
+# Set test data
+mag <- list(ax = (c(4, 5, 7, 4, 9, 8, 4, 3)),
+           ay = (c(3, 4, 6, 3, 8, 7, 3, 2)),
+           az = (c(5, 6, 8, 5, 10, 9, 5, 4)))
+
+window_width <- 4
+
+# Store result
+test_res_mag <- list()
+
+test_res_mag$slide1 <- sum(sqrt(mag$ax[1]^2 + mag$ay[1]^2 + mag$az[1]^2) +
+    sqrt(mag$ax[2]^2 + mag$ay[2]^2 + mag$az[2]^2) +
+    sqrt(mag$ax[3]^2 + mag$ay[3]^2 + mag$az[3]^2) +
+    sqrt(mag$ax[4]^2 + mag$ay[4]^2 + mag$az[4]^2)) / window_width
+
+test_res_mag$slide2 <- sum(sqrt(mag$ax[5]^2 + mag$ay[5]^2 + mag$az[5]^2) +
+    sqrt(mag$ax[6]^2 + mag$ay[6]^2 + mag$az[6]^2) +
+    sqrt(mag$ax[3]^2 + mag$ay[3]^2 + mag$az[3]^2) +
+    sqrt(mag$ax[4]^2 + mag$ay[4]^2 + mag$az[4]^2)) / window_width
+
+test_res_mag$slide3 <- sum(sqrt(mag$ax[5]^2 + mag$ay[5]^2 + mag$az[5]^2) +
+    sqrt(mag$ax[6]^2 + mag$ay[6]^2 + mag$az[6]^2) +
+    sqrt(mag$ax[7]^2 + mag$ay[7]^2 + mag$az[7]^2) +
+    sqrt(mag$ax[8]^2 + mag$ay[8]^2 + mag$az[8]^2)) / window_width
+```
+Expected result:
+```{r}
+test_res_mag
+```
+Repeat the same with rollapply:
+```{r}
+# Form vector of magnitudes for raw data
+scalar2mag <- pmap_dbl(mag, function(ax, ay, az) sqrt(ax^2 + ay^2 + az^2))
+# Get result
+rollapply(zoo(scalar2mag), width = 4, by = 2, FUN = mean)
+```
+
+# 2. How to calculate FFT for sliding windows
+
+## 2.1 FFT for single user
+
+Build spectrogramma on raw data replacing trends and constant value
+```{r}
+user1x.spec <- spectrum(user1$ax, log = "no", span = 10, plot = FALSE, detrend = T, demean = F)
+spu1_x <- user1x.spec$freq * sample_Hz
+spu1_y <- 2*user1x.spec$spec
+plot(spu1_y ~ spu1_x, xlab = "frequency", ylab = "spectral density", type = "l", xlim = c(0, 10))
+```
+Let's make detrending signal by using diff() as suggest [here](https://stackoverflow.com/questions/14010605/fast-fourier-transform-in-r?rq=1)
+```{r}
+user1x.spec <- spectrum(diff(user1$ax), log = "no", span = 50, plot = FALSE, detrend = T, demean = T)
+spu1_x <- user1x.spec$freq * sample_Hz
+spu1_y <- 2*user1x.spec$spec
+plot(spu1_y ~ spu1_x, xlab = "frequency", ylab = "spectral density", type = "l", xlim = c(0, 12))
+```
+Make spectrogram by hand replacing constant value:
+```{r}
+manual_spec <- function(x) {
+  user1mx.spec <- Mod(fft(x))
+  user1mx.spec[1] <- median(user1mx.spec)
+  user1mx.spec.left <- 2*user1mx.spec[1:sample_Hz/2]
+  plot(user1mx.spec, type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)", xlim = c(0, 2000))}
+
+manual_spec(user1$ax)
+```
+The same but with diff():
+```{r}
+user1m2x.spec <- Mod(fft(diff(user1$ax)))
+user1m2x.spec.left <- 2*user1m2x.spec[1:sample_Hz/2]
+plot(user1m2x.spec, type="h", col="blue", xlab="Frequency (Hz)", ylab="Amplitude (no unit)", xlim = c(0, 2000))
+```
+
+Compare the total energy of time and frequence domain:
+Time energy:
+```{r}
+sum(user1$ax^2)
+```
+Frequency energy by spectrum() 
+```{r}
+1/length(user1x.spec) * sum(user1x.spec$spec^2)
+```
+Frequency energy by manual:
+```{r}
+sum(Mod(fft(user1$ax))^2)
+```

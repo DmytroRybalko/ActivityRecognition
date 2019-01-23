@@ -159,21 +159,5 @@ person1 %>% #group = activity
     facet_wrap(activity ~ ., scales = "free")
 ```
 
-Working at computer, complex ampitude x^2+y^2+z^2
-```{r}
-person1 %>% 
-  filter(X1 == 1) %>% 
-    ggplot(aes(x = sqrt(X1502^2 + X2215^2 + X2153^2), X0)) +
-      geom_line() +
-      coord_cartesian(xlim = c(3500, 3900))
-```
 
-## 2. Standing Up, Walking and Going up\down stairs
-```{r}
-person1 %>% 
-  filter(X1 == 2) %>% 
-    ggplot(aes(X1502, X0)) +
-      geom_line() +
-      coord_cartesian(xlim = c(1750, 2100))
-```
 

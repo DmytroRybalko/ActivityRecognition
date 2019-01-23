@@ -1,0 +1,202 @@
+---
+title: "Features Extraction"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+
+library(tidyverse)
+library(zoo)
+```
+
+# as_tibble(features.extract)
+
+# Set sliding window parameters
+   
+The raw data is divided into identification intervals of 100 samples width with 50% overlap:  
+Sampling freaquency: $f_s = 52 Hz$;  
+Number of samples (sliding window length) $N = 100$;  
+Length of data frame: $L = N \over f_s$ (2 sec max!)
+```{r}
+sample_Hz <- 52
+sample_N <- 100 
+overlap <- 0.5
+length_DF <- round(sample_N / sample_Hz)
+```
+  
+## 2. Calculate features for particular user  
+
+Get data:
+```{r, cache=TRUE}
+(data4features <- readRDS("data/preprocessing/pre_features_activity4.rds"))
+```
+1) Filter data for particular user  
+```{r}
+(user1 <- filter(data4features, user_id == 1))
+```
+2) Add columns of class 'zoo' for function rollapply() 
+```{r}
+# user1 %>% 
+#   mutate(ax_zoo = zoo(ax),
+#          ay_zoo = zoo(ay),
+#          az_zoo = zoo(az)) -> user1
+```
+3) Add columns with FFT raw data transformation
+```{r}
+# user1 %>% 
+#   mutate(ax_fft = Mod(fft(ax)),
+#          ay_fft = Mod(fft(ay)),
+#          az_fft = Mod(fft(az))) -> user1
+```
+3) Add columns raw_mag_xyz and fft_mag_xyz with magnitude of raw anf FFT data respectively
+```{r}
+# user1 <- user1 %>%
+#   mutate(raw_mag = pmap_dbl(list(.$ax, .$ay, .$az), function(ax, ay, az) sqrt(ax^2 + ay^2 + az^2)) %>% round(),
+#          fft_mag = pmap_dbl(list(.$ax_fft, .$ay_fft, .$az_fft),
+#                             function(ax_fft, ay_fft, az_fft) sqrt(ax_fft^2 + ay_fft^2 + az_fft^2)) %>% round())
+# user1
+```
+
+Make template for final tibble:
+```{r}
+features.extract <- list()
+```
+### 2.1 Mean  
+
+Set function for mean calculation
+```{r}
+features.mean <- function(df) {
+  rollapply(df, width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric() %>% round()}
+```
+
+### 1) raw_mean_ax
+```{r}
+features.extract$raw_mean_ax <- features.mean(zoo(user1$ax))
+summary(features.extract$raw_mean_ax)
+```
+### 2) raw_mean_ay
+```{r}
+features.extract$raw_mean_ay <- features.mean(zoo(user1$ay))
+summary(features.extract$raw_mean_ay)
+```
+### 3) raw_mean_az
+```{r}
+features.extract$raw_mean_az <- features.mean(zoo(user1$az))
+summary(features.extract$raw_mean_az)
+```
+For calculating mean for frequency domain we get rid constant value by using diff()
+**IMPORTANT!!!** diff() is decrease length of input vector!
+### 4) fft_mean_ax
+```{r}
+features.extract$fft_mean_ax <- features.mean(zoo(Mod(fft(diff(user1$ax)))))
+summary(features.extract$fft_mean_ax)
+```
+### 5) fft_mean_ay:  
+```{r}
+features.extract$fft_mean_ay <- features.mean(zoo(Mod(fft(diff(user1$ay)))))
+summary(features.extract$fft_mean_ay)
+```
+### 6) fft_mean_az:  
+```{r}
+features.extract$fft_mean_az <- features.mean(zoo(Mod(fft(diff(user1$az)))))
+summary(features.extract$fft_mean_az)
+```
+
+## Median
+
+```{r}
+features.median <- function(df) {
+  rollapply(df, width = sample_N, by = sample_N * overlap, FUN = median) %>% as.numeric() %>% round()}
+```
+
+### 7) raw_median_ax
+```{r}
+features.extract$raw_median_ax <- features.median(zoo(user1$ax))
+summary(features.extract$raw_median_ax)
+```
+### 8) raw_median_ay
+```{r}
+features.extract$raw_median_ay <- features.median(zoo(user1$ay))
+summary(features.extract$raw_median_ay)
+```
+### 9) raw_median_az
+```{r}
+features.extract$raw_median_az <- features.median(zoo(user1$az))
+summary(features.extract$raw_median_az)
+```
+### 10) fft_median_ax
+```{r}
+features.extract$fft_median_ax <- features.median(zoo(Mod(fft(diff(user1$ax)))))
+summary(features.extract$fft_median_ax)
+```
+### 11) fft_median_ay
+```{r}
+features.extract$fft_median_ay <- features.median(zoo(Mod(fft(diff(user1$ay)))))
+summary(features.extract$fft_median_ay)
+```
+### 12) fft_median_az
+```{r}
+features.extract$fft_median_az <- features.median(zoo(Mod(fft(diff(user1$az)))))
+summary(features.extract$fft_median_az)
+```
+
+## Magnitude
+
+### 13) raw_mag
+
+Prepare data to calculation
+```{r}
+raw_mag_fun <- function(df) {
+  
+  # Calculate magnitude array
+  raw_mag <- pmap_dbl(list(df$ax, df$ay, df$az), function(ax, ay, az) sqrt(ax^2 + ay^2 + az^2)) %>% zoo()
+  
+  # Calculate magnitud for each sliding window
+  rollapply(raw_mag, width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric() %>% round()
+}
+test <- raw_mag_fun(user1)
+```
+Calculate magnitude by sliding window
+```{r}
+features.extract$raw_mag <- raw_mag_fun(user1)
+summary(features.extract$raw_mag)
+```
+
+### 14) fft_mag_xyz  
+
+#### 14.1 Prepare data to calculation
+
+Make function that create magnitude from differential raw data
+```{r}
+fft_mag_fun <- function(df) {
+  
+  # Make list with differential raw data
+  diff_xyz <- list(dx = diff(df$ax),
+                   dy = diff(df$ay),
+                   dz = diff(df$az))
+  
+  # Calculate magnitude
+  diff_xyz$mag <- pmap_dbl(diff_xyz, function(dx, dy, dz) sqrt(dx^2 + dy^2 + dz^2)) %>% zoo()
+  
+  # Calculate magnitud for each sliding window
+  rollapply(diff_xyz$mag, width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric() %>% round()
+}
+
+test <- fft_mag_fun(user1)
+```
+
+#### 14.2 Calculate magnitude by sliding window
+
+```{r}
+features.extract$fft_mag <- fft_mag_fun(user1)
+summary(features.extract$fft_mag)
+```
+
+### 15 Cross-correlation 
+15) raw_mag_az;
+16) fft_mag_ax;  
+17) fft_mag_ay;  
+18) fft_mag_az; 
+
+

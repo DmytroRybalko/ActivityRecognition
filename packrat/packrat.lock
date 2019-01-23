@@ -754,3 +754,9 @@ Package: yaml
 Source: CRAN
 Version: 2.2.0
 Hash: a5ad5616d83d89f8d84cbf3cf4034e13
+
+Package: zoo
+Source: CRAN
+Version: 1.8-4
+Hash: 3edc81171d764bf644cfeb4bd0b77040
+Requires: lattice
