@@ -98,6 +98,7 @@ Distance between peaks refers to the average time interval between two successiv
 26) peak_dist_az;  
   
 ### Spectral Centroid  
+  
 Spectral centroid is a measure used to characterise a spectrum. In this case, spectrum refers to the identification window of acceleration values. It indicates where the center of mass of the spectrum is. The spectral centroid of each window for the three axes using the FFT values as weights is given by:  
 $Centroid = \sum_ { k = 1 }^l { x_tk f_tk } \over { l }$  
 where:  
@@ -121,16 +122,6 @@ $x_t$    - Instantaneous acceleration
 31) diff_mean_ay;  
 32) diff_mean_az;  
   
-### **Tibble template for features vector**  
-
-```{r}
-features <- tibble(raw_mean_ax = 0, raw_mean_ay = 0, raw_mean_az = 0,
-                   fft_mean_ax = 0, fft_mean_ay = 0, fft_mean_az = 0,
-                   raw_median_ax = 0, raw_median_ay = 0, raw_median_az = 0,
-                   fft_median_ax = 0, fft_median_ay = 0, fft_median_az = 0)
-```
-
-     
 ## **Sliding window parameters**  
 
 The raw data is divided into identification intervals of 100 samples width with 50% overlap:  

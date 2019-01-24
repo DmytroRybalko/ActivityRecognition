@@ -163,24 +163,24 @@ features.extract$raw_mag <- raw_mag_fun(user1)
 summary(features.extract$raw_mag)
 ```
 
-### 14) fft_mag_xyz  
+### 14) fft_mag  
 
 #### 14.1 Prepare data to calculation
 
-Make function that create magnitude from differential raw data
+Make function that create magnitude from FFT data
 ```{r}
 fft_mag_fun <- function(df) {
   
   # Make list with differential raw data
-  diff_xyz <- list(dx = diff(df$ax),
-                   dy = diff(df$ay),
-                   dz = diff(df$az))
+  mod.fft.xyz <- list(m.fft.x = Mod(fft(diff(df$ax))),
+                      m.fft.y = Mod(fft(diff(df$ay))),
+                      m.fft.z = Mod(fft(diff(df$ax))))
   
   # Calculate magnitude
-  diff_xyz$mag <- pmap_dbl(diff_xyz, function(dx, dy, dz) sqrt(dx^2 + dy^2 + dz^2)) %>% zoo()
+  mod.fft.xyz$mag <- pmap_dbl(mod.fft.xyz, function(m.fft.x, m.fft.y, m.fft.z) sqrt(m.fft.x^2 + m.fft.y^2 + m.fft.z^2)) %>% zoo()
   
   # Calculate magnitud for each sliding window
-  rollapply(diff_xyz$mag, width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric() %>% round()
+  rollapply(mod.fft.xyz$mag, width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric() %>% round()
 }
 
 test <- fft_mag_fun(user1)
@@ -193,10 +193,276 @@ features.extract$fft_mag <- fft_mag_fun(user1)
 summary(features.extract$fft_mag)
 ```
 
-### 15 Cross-correlation 
-15) raw_mag_az;
-16) fft_mag_ax;  
-17) fft_mag_ay;  
-18) fft_mag_az; 
+## Cross-correlation 
 
+The cross correlation of z axis with x axis and y axis are mathematically defined as follows:  
+$Corr _xy = x_ mean \over y_ mean$;  
+$Corr _zy = z_ mean \over y_ mean$,  
+  
+Let's make some investigation
+```{r}
+test_corr <- tibble(corr_xy = features.extract$raw_mean_ax / features.extract$raw_mean_ay,
+                    corr_zy = features.extract$raw_mean_az / features.extract$raw_mean_ay)
+test_corr
+```
+Build some plots:
+```{r}
+test_corr %>% 
+  ggplot(aes(x = seq(1:nrow(test_corr)), y = corr_xy)) +
+    geom_line(color = "green") +
+    geom_line(aes(x = seq(1:nrow(test_corr)), y = corr_zy), color = "red")
+```
+### 15(19) corr_xy
+```{r}
+features.extract$corr_xy <- features.extract$raw_mean_ax / features.extract$raw_mean_ay
+summary(features.extract$corr_xy)
+```
+### 16(20) corr_zy
+```{r}
+features.extract$corr_zy <- features.extract$raw_mean_az / features.extract$raw_mean_ay
+summary(features.extract$corr_zy)
+```
+### 17(-) corr_xy_fft
+```{r}
+features.extract$corr_xy_fft <- features.extract$fft_mean_ax / features.extract$fft_mean_ay
+summary(features.extract$corr_xy_fft)
+```
+### 18(-) corr_zy_fft
+```{r}
+features.extract$corr_zy_fft <- features.extract$fft_mean_az / features.extract$fft_mean_ay
+summary(features.extract$corr_zy_fft)
+```
 
+## Peak Count  
+  
+Peak count for each axis refers to the number of local maxima for the axial data in the identification window. The average of the peak count over the three axes for the time domain data is selected as a feature  
+  
+### Auxiliary functions for peak detections
+
+Function find peaks by given parameters
+```{r}
+argmax <- function(x, y, w = 1, ...) {
+  #require(zoo)
+  n <- length(y)
+  y.smooth <- loess(y ~ x, ...)$fitted
+  y.max <- rollapply(zoo(y.smooth), 2*w+1, max, align="center")
+  delta <- y.max - y.smooth[-c(1:w, n+1-1:w)]
+  i.max <- which(delta <= 0) + w
+  list(x = x[i.max], i = i.max, y.hat = y.smooth)
+}
+```
+Parameters for peak.detection function:
+```{r}
+peak.detection.window <- 3 # w
+peak.detection.span <- 0.1 # span
+```
+Function that calculate average number of peaks per window  
+```{r}
+avg.peaks <- function(user.ai) {
+  rollapply(zoo(user.ai), width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(length(peaks$x) / sample_N)}) %>% as.numeric()} 
+```
+Test avg.peaks function:
+```{r}
+avg.peaks(user1$ax[1:200])
+```
+
+### 19(21) mean_peak_ax  
+
+```{r}
+features.extract$mean_peak_ax <- avg.peaks(user1$ax)
+summary(features.extract$mean_peak_ax)
+```
+
+### 20(22) mean_peak_ay  
+
+```{r}
+features.extract$mean_peak_ay <- avg.peaks(user1$ay)
+summary(features.extract$mean_peak_ay)
+```
+
+### 21(22) mean_peak_az  
+
+```{r}
+features.extract$mean_peak_az <- avg.peaks(user1$az)
+summary(features.extract$mean_peak_az)
+```
+
+## Distance between Peaks  
+
+Distance between peaks refers to the average time interval between two successive peaks in a window
+
+### Auxiliary functions
+
+Function that calculate average distance between picks through windows
+```{r}
+avg.dist.peaks <- function(user.ai) {
+  rollapply(zoo(user.ai), width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(mean(diff(peaks$i)))}) %>% as.numeric} 
+```
+Test avg.dist.peaks function:
+```{r}
+avg.dist.peaks(user1$ax[1:200])
+```
+
+### 22(24) peak_mean_dist_ax
+
+```{r}
+features.extract$peak_avg_dist_ax <- avg.dist.peaks(user1$ax)
+summary(features.extract$peak_avg_dist_ax)
+```
+
+### 23(25) peak_avg_dist_ay
+
+```{r}
+features.extract$peak_avg_dist_ay <- avg.dist.peaks(user1$ay)
+summary(features.extract$peak_avg_dist_ay)
+```
+
+### 24(26) peak_mean_dist_az
+
+```{r}
+features.extract$peak_avg_dist_az <- avg.dist.peaks(user1$az)
+summary(features.extract$peak_avg_dist_az)
+```
+
+## Additionaly calculate SD of peaks diffs
+
+Function that calculate standard deviation of average distance between picks through windows
+```{r}
+sd.dist.peaks <- function(user.ai) {
+  rollapply(zoo(user.ai), width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(sd(diff(peaks$i)) / sample_N)}) %>% as.numeric} 
+```
+Test avg.dist.peaks function:
+```{r}
+sd.dist.peaks(user1$ax[1:200])
+```
+### 25(-) peak_sd_dist_ax
+
+```{r}
+features.extract$peak_sd_dist_ax <- sd.dist.peaks(user1$ax)
+summary(features.extract$peak_sd_dist_ax)
+```
+
+### 26(-) peak_sd_dist_ay
+
+```{r}
+features.extract$peak_sd_dist_ay <- sd.dist.peaks(user1$ay)
+summary(features.extract$peak_sd_dist_ay)
+```
+
+### 27(-) peak_sd_dist_az
+
+```{r}
+features.extract$peak_sd_dist_az <- sd.dist.peaks(user1$az)
+summary(features.extract$peak_sd_dist_az)
+```
+
+## Spectral Centroid  
+  
+Spectral centroid is a measure used to characterise a spectrum. In this case, spectrum refers to the identification window of acceleration values. It indicates where the center of mass of the spectrum is. The spectral centroid of each window for the three axes using the FFT values as weights is given by:  
+$$Centroid = \sum_ { k = 1 }^l { x_tk f_tk } \over { l }$$  
+where:  
+$x_tk$ - Instantaneous acceleration   
+$f_tk$ - Instantaneous value of FFT  
+l      - length of window  
+
+### Auxiliary functions
+
+Make function that create magnitude from FFT data
+```{r}
+spectral.centroid <- function(user.ai) {
+  # Calculate FFT. After applaying diff() input array has n-1 length!
+  mod.fft <- Mod(fft(diff(user.ai))) %>% round
+  
+  # Align the vector along the length by adding the median as the last element
+  mod.fft[length(mod.fft) + 1] <- mod.fft[median(mod.fft)]
+  
+  # Calculate spectral centroid for current window
+  spec.centr <- list(centroid = zoo(user.ai * mod.fft))
+  
+  # Calculate spectral centroid through all windows
+  rollapply(spec.centr$centroid, width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric %>% round
+}
+```
+Test spectral.centroid function
+```{r}
+spectral.centroid(user1$ax[1:201])
+```
+
+### 28(27) spectral_centr_ax
+
+```{r}
+features.extract$spectral_centr_ax <- spectral.centroid(user1$ax)
+summary(features.extract$spectral_centr_ax)
+```
+
+### 29(28) spectral_centr_ay;  
+
+```{r}
+features.extract$spectral_centr_ay <- spectral.centroid(user1$ay)
+summary(features.extract$spectral_centr_ay)
+```
+
+### 30(29) spectral_centr_az
+
+```{r}
+features.extract$spectral_centr_az <- spectral.centroid(user1$az)
+summary(features.extract$spectral_centr_az)
+```
+
+## Average Difference from Mean  
+
+The absolute difference from mean of the window for each axis (time domain) is calculated as follows:  
+$Diff_x = Avg( \abs{ x_t - x_mean } )$  
+where:  
+$Diff_x$ - Difference from mean   
+$x_t$    - Instantaneous acceleration  
+
+Make function that calculate the absolute difference from mean of the window
+```{r}
+abs.diff.mean <- function(user.ai) {
+  
+  # Calculate absolute difference from mean of the window
+  window.abs.diff <- rollapply(user.ai, width = sample_N, by = sample_N * overlap,
+                               FUN = function(x) mean(abs(x - mean(x)))) %>% as.numeric %>% round
+}
+```
+Test spectral.centroid function
+```{r}
+aa <- abs.diff.mean(user1$ax[1:200])
+aa
+```   
+   
+### 31(30) avg_diff_mean_ax
+
+```{r}
+features.extract$avg_diff_mean_ax <- abs.diff.mean(user1$ax)
+summary(features.extract$avg_diff_mean_ax)
+```
+
+### 32(31) diff_mean_ay
+
+```{r}
+features.extract$avg_diff_mean_ay <- abs.diff.mean(user1$ay)
+summary(features.extract$avg_diff_mean_ay)
+```
+
+### 33(32) diff_mean_az
+
+```{r}
+features.extract$avg_diff_mean_az <- abs.diff.mean(user1$az)
+summary(features.extract$avg_diff_mean_az)
+```
+
+So now we have complete list of features for single user!!!
