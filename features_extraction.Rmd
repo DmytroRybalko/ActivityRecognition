@@ -17,8 +17,14 @@ library(zoo)
 2. Repeat steps 1- 3 for all files (#1-10)  
 3. Combine features from different users in final tibble  
 4. Make csv file with features  
+
+4. Repeat steps 1- 3 for all files (#1-10)  
+5. Combine features from different users in final tibble  
+6. Make csv file with features  
   
-## 1. Set sliding window parameters
+# 1. Settings
+
+## 1.1 Sliding window parameters
    
 The raw data is divided into identification intervals of 100 samples width with 50% overlap:  
 Sampling freaquency: $f_s = 52 Hz$;  
@@ -31,43 +37,11 @@ overlap <- 0.5
 length_DF <- round(sample_N / sample_Hz)
 ```
 
-### 1.1 Test rollapply from zoo package
-
-So, for **rollapply** function, the raw data been divided into identification intervals of 4 samples width with 50% overlap will look like:  
-step 1: (4 + 5 + 7 + 4) / 4 = 5  
-step 2: (7 + 4 + 9 + 8) / 4 = 7  
-step 3: (9 + 8 + 4 + 3) / 4 = 6
+## 1.2 Parameters for peak detection:
 ```{r}
-TS <- zoo(c(4, 5, 7, 4, 9, 8, 4, 3))
-(ra <- rollapply(TS, width = 4, by = 2, FUN = mean))
+peak.detection.window <- 3 # w
+peak.detection.span <- 0.1 # span
 ```
-Convert to integer:
-```{r}
-as.numeric(ra)
-```
-
-## 2. Calculate features for particular user  
-
-Get data:
-```{r}
-(data4features <- readRDS("data/preprocessing/pre_features_data.rds"))
-```
-Filter data for particular user:
-```{r}
-(user1 <- subset(data4features, user_id == 1))
-```
-Make template for final tibble:
-```{r}
-#TS <- zoo(c(4, 5, 7, 4, 9, 8, 4, 3))
-#ra <- rollapply(TS, width = 4, by = 2, FUN = mean)
-features.extract <- tibble()  
-features.extract$raw_mean_ax <- rollapply(zoo(user1$ax), width = 100, by = 50, FUN = mean)
-```
-```{r}
-t1 <- zoo(user1$ax)
-r1 <- round(rollapply(t1, width = 100, by = 50, FUN = mean))
-```
-
 
 ### 2.1 Mean  
 1) raw_mean_ax;  
@@ -76,18 +50,6 @@ r1 <- round(rollapply(t1, width = 100, by = 50, FUN = mean))
 4) fft_mean_ax;  
 5) fft_mean_ay;  
 6) fft_mean_az;  
-```{r}
-df_feature <- function(df) {
-  raw_mean_ax <- rollapply()  
- raw_mean_ay;  
- raw_mean_az;
 
-}
-```
-
-
-4. Repeat steps 1- 3 for all files (#1-10)  
-5. Combine features from different users in final tibble  
-6. Make csv file with features  
   
 

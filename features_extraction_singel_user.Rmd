@@ -75,6 +75,15 @@ features.mean <- function(df) {
 features.extract$raw_mean_ax <- features.mean(zoo(user1$ax))
 summary(features.extract$raw_mean_ax)
 ```
+
+### Simplify version:
+
+```{r}
+zoo(user1$ax) %>% 
+  rollapply(width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric %>% round %>% summary
+```
+
+
 ### 2) raw_mean_ay
 ```{r}
 features.extract$raw_mean_ay <- features.mean(zoo(user1$ay))
@@ -92,6 +101,13 @@ For calculating mean for frequency domain we get rid constant value by using dif
 features.extract$fft_mean_ax <- features.mean(zoo(Mod(fft(diff(user1$ax)))))
 summary(features.extract$fft_mean_ax)
 ```
+### Simplify version:
+
+```{r}
+user1$ax %>% diff %>% fft %>% Mod %>% zoo %>% 
+  rollapply(width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric %>% round %>% summary
+```
+
 ### 5) fft_mean_ay:  
 ```{r}
 features.extract$fft_mean_ay <- features.mean(zoo(Mod(fft(diff(user1$ay)))))
@@ -162,6 +178,11 @@ Calculate magnitude by sliding window
 features.extract$raw_mag <- raw_mag_fun(user1)
 summary(features.extract$raw_mag)
 ```
+### Simplify:
+```{r}
+pmap_dbl(list(user1$ax, user1$ay, user1$az), function(ax, ay, az) sqrt(ax^2 + ay^2 + az^2)) %>%  
+  rollapply(width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric %>% round %>% summary
+```
 
 ### 14) fft_mag  
 
@@ -174,7 +195,7 @@ fft_mag_fun <- function(df) {
   # Make list with differential raw data
   mod.fft.xyz <- list(m.fft.x = Mod(fft(diff(df$ax))),
                       m.fft.y = Mod(fft(diff(df$ay))),
-                      m.fft.z = Mod(fft(diff(df$ax))))
+                      m.fft.z = Mod(fft(diff(df$az))))
   
   # Calculate magnitude
   mod.fft.xyz$mag <- pmap_dbl(mod.fft.xyz, function(m.fft.x, m.fft.y, m.fft.z) sqrt(m.fft.x^2 + m.fft.y^2 + m.fft.z^2)) %>% zoo()
@@ -191,6 +212,27 @@ test <- fft_mag_fun(user1)
 ```{r}
 features.extract$fft_mag <- fft_mag_fun(user1)
 summary(features.extract$fft_mag)
+```
+
+```{r}
+summary(fft_mag_fun(user1))
+```
+
+### Simplify:
+
+[look here](https://stackoverflow.com/questions/46392282/map-function-to-second-level-of-nested-list-using-purrr)
+
+1) Make FFT from raw data 
+```{r}
+user0 <- user1[1:10,]
+list(user0$ax, user0$ay, user0$az) %>% map(~ .x %>% diff %>% fft %>% Mod %>% round)
+```
+2) Next step
+```{r}
+list(user1$ax, user1$ay, user1$az) %>% 
+  map(~ .x %>% diff %>% fft %>% Mod) %>% # make fft from raw data
+  pmap_dbl(function(ax, ay, az) sqrt(ax^2 + ay^2 + az^2)) %>%  #
+    rollapply(width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric %>% round %>% summary
 ```
 
 ## Cross-correlation 
@@ -277,6 +319,17 @@ features.extract$mean_peak_ax <- avg.peaks(user1$ax)
 summary(features.extract$mean_peak_ax)
 ```
 
+### Simplify for single value:
+```{r}
+user1$ax %>% 
+  rollapply(width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(length(peaks$x) / sample_N)} %>% as.numeric) %>% summary
+
+```
+
 ### 20(22) mean_peak_ay  
 
 ```{r}
@@ -290,6 +343,53 @@ summary(features.extract$mean_peak_ay)
 features.extract$mean_peak_az <- avg.peaks(user1$az)
 summary(features.extract$mean_peak_az)
 ```
+
+### Simplify for many values:
+
+#### First test:
+
+1) Set empty list:
+```{r}
+peak <- list()
+```
+2) Create 3 new columns and assign theirs to peak list
+```{r}
+map(list(user1$ax[1:200], user1$ay[1:200], user1$az[1:200]), function(x) {
+  rollapply(x, width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(length(peaks$x) / sample_N)}) %>% as.numeric}) %>% set_names(c('ax1', 'ay1', 'az1')) %>% append(peak) -> peak
+peak
+```
+3) Create next 3 new columns and assign theirs to peak list
+```{r}
+map(list(user1$ax[1:200], user1$ay[1:200], user1$az[1:200]), function(x) {
+  rollapply(x, width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(length(peaks$x) / sample_N)}) %>% as.numeric}) %>% set_names(c('ax2', 'ay2', 'az2')) %>% append(peak) -> peak
+peak
+```
+It works!!!
+
+#### Check real data:
+
+```{r}
+peak4 <- list() 
+map(list(user1$ax, user1$ay, user1$az), function(x) {
+  rollapply(x, width = sample_N, by = sample_N * overlap, 
+            FUN = function(z) {
+              id <- 1:length(z)            
+              peaks <- argmax(x = id, y = z, w = peak.detection.window, span = peak.detection.span)
+              return(length(peaks$x) / sample_N)}) %>% as.numeric}) %>% set_names(c('max2', 'may2', 'maz2')) %>% append(peak4) -> peak4
+```
+Check summary:
+```{r}
+map(peak4, summary)
+```
+
 
 ## Distance between Peaks  
 
@@ -311,7 +411,7 @@ Test avg.dist.peaks function:
 avg.dist.peaks(user1$ax[1:200])
 ```
 
-### 22(24) peak_mean_dist_ax
+### 22(24) peak_avg_dist_ax
 
 ```{r}
 features.extract$peak_avg_dist_ax <- avg.dist.peaks(user1$ax)
@@ -325,7 +425,7 @@ features.extract$peak_avg_dist_ay <- avg.dist.peaks(user1$ay)
 summary(features.extract$peak_avg_dist_ay)
 ```
 
-### 24(26) peak_mean_dist_az
+### 24(26) peak_avg_dist_az
 
 ```{r}
 features.extract$peak_avg_dist_az <- avg.dist.peaks(user1$az)
@@ -451,14 +551,14 @@ features.extract$avg_diff_mean_ax <- abs.diff.mean(user1$ax)
 summary(features.extract$avg_diff_mean_ax)
 ```
 
-### 32(31) diff_mean_ay
+### 32(31) avg_diff_mean_ay
 
 ```{r}
 features.extract$avg_diff_mean_ay <- abs.diff.mean(user1$ay)
 summary(features.extract$avg_diff_mean_ay)
 ```
 
-### 33(32) diff_mean_az
+### 33(32) avg_diff_mean_az
 
 ```{r}
 features.extract$avg_diff_mean_az <- abs.diff.mean(user1$az)
