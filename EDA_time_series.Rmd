@@ -343,3 +343,35 @@ Set manual function for rollapply:
 rollapply(TS, width = 4, by = 2, FUN = function(x) mean(abs(x - mean(x))))
 ```
 
+### How to extract particular user from dataframe:
+
+#### 1) Make test tibble with all users
+```{r, cache=TRUE}
+as.character(1:10) %>% 
+  map_dfr(~filter(data4features, user_id == .) %>% 
+            slice(33:34)) -> test.all.users
+test.all.users
+```
+#### 2) Test function for extracting single user from dataset
+
+```{r}
+# Make test function instead of features.extract
+test_df <- function(df) {
+  df %>% 
+    select(ax, az) %>%
+    mutate(magnitude = ax^2 + az^2)}
+```
+Final function
+```{r}
+df <- test.all.users
+users <- as.character(1:10)
+
+users %>% 
+  map_dfr(~filter(df, user_id == .) %>% 
+            test_df() %>% 
+            mutate(user_id = rep(.x, each = nrow(.))) %>% 
+            select(user_id, everything()))
+```
+
+
+

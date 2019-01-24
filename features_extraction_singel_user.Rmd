@@ -10,8 +10,6 @@ library(tidyverse)
 library(zoo)
 ```
 
-# as_tibble(features.extract)
-
 # Set sliding window parameters
    
 The raw data is divided into identification intervals of 100 samples width with 50% overlap:  

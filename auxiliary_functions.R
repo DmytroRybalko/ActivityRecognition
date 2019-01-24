@@ -178,7 +178,10 @@ features.extract <- function(df) {
         mod.fft[length(mod.fft) + 1] <- mod.fft[median(mod.fft)]
         
         # Calculate spectral centroid through all windows
-        rollapply(zoo(x * mod.fft), width = sample_N, by = sample_N * overlap, FUN = mean) %>% as.numeric %>% round
+        rollapply(zoo(x * mod.fft),
+                  width = sample_N,
+                  by = sample_N * overlap,
+                  FUN = mean) %>% as.numeric %>% round
   }) %>% set_names(spec_centr) %>% append(features) -> features
   
   ### 9. Average Difference from Mean  (time domain only)
@@ -191,16 +194,22 @@ features.extract <- function(df) {
   avg_diff <- c("avg_diff_mean_ax", "avg_diff_mean_ay", "avg_diff_mean_az")
   
   map(list(df$ax, df$ay, df$az), 
-      function(z) { rollapply(z, width = sample_N, by = sample_N * overlap,
-                            FUN = function(x) mean(abs(x - mean(x)))) %>% as.numeric %>% round}) %>% 
+      function(z) {
+        rollapply(z,
+                  width = sample_N,
+                  by = sample_N * overlap,
+                  FUN = function(x) mean(abs(x - mean(x)))) %>% as.numeric %>% round}) %>% 
     set_names(avg_diff) %>% append(features) -> features
   
-  return(features)
+  return(as_tibble(features))
 }
+
+#save("features.extract", file = "features_extract.Rdata")
+
 
 ##### Auxiliary functions for peak detections 
 
-# Function find peaks by given parameters
+### Function find peaks by given parameters
 argmax <- function(x, y, w = 1, ...) {
   n <- length(y)
   y.smooth <- loess(y ~ x, ...)$fitted
@@ -210,18 +219,18 @@ argmax <- function(x, y, w = 1, ...) {
   list(x = x[i.max], i = i.max, y.hat = y.smooth)
 }
 
-
-# === TEST ZONE ===
-
-## For testing run user1 data from features_extraction_single_user.Rmd
+################ === TEST ZONE ===  #######################
 
 ##########################
 ### TEST features.extract 
 ### 
-#Parameters for peak.detection function:
-peak.detection.window <- 3 # w
-peak.detection.span <- 0.1 # span
 
-f.e.test <- features.extract(user1)
-map(f.e.test, summary)
+## For testing run user1 data from features_extraction_single_user.Rmd
+
+#Parameters for peak.detection function:
+# peak.detection.window <- 3 # w
+# peak.detection.span <- 0.1 # span
+# 
+# f.e.test <- features.extract(user1)
+# map(f.e.test, summary)
 
