@@ -1,0 +1,116 @@
+---
+title: "Features Transformation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+
+library(tidyverse)
+library(caret)
+```
+
+# Load features:
+
+```{r}
+raw_features <- readRDS("data/preprocessing/features_v1.rds")
+```
+
+# Data normalization
+
+```{r}
+as.character(1:10) %>% 
+  map_dfr(~filter(df, user_id == .) %>% 
+            scale %>%
+            as_tibble %>% 
+            mutate(user_id = rep(.x, each = nrow(.))) %>% 
+            select(user_id, everything()))
+```
+
+
+## TEST data
+```{r}
+as.character(1:10) %>% 
+  map_dfr(~filter(raw_features, user_id == .) %>% 
+            slice(30:34)) -> test.raw.features
+test.raw.features
+```
+Normalize for single user:
+```{r}
+test.raw.features %>% 
+  filter(user_id == 1) %>% 
+  select(-user_id) -> user1
+user1
+```
+Test norm
+```{r}
+test_norm_vec <- pull(user1, 2)
+test_norm_vec %>% 
+  map_dbl(~(.x - mean(test_norm_vec)) / sd(test_norm_vec)) -> test.res
+test.res
+```
+Use scale
+```{r}
+scale(test_norm_vec)
+```
+Use scale for tibble:
+```{r}
+a3 <- scale(user1[,1:3])
+a3
+```
+Test normalization for multiple users:
+```{r}
+as.character(1:10) %>% 
+  map_dfr(~filter(test.raw.features, user_id == .) %>% 
+            select(-user_id) %>% 
+            scale %>%
+            as_tibble %>% 
+            mutate(user_id = rep(.x, each = nrow(.))) %>% 
+            select(user_id, everything()))
+```
+
+## Do normalization
+```{r}
+as.character(1:10) %>% 
+  map_dfr(~filter(raw_features, user_id == .) %>% 
+            select(-user_id) %>% 
+            scale %>%
+            as_tibble %>% 
+            mutate(user_id = rep(.x, each = nrow(.))) %>% 
+            select(user_id, everything())) -> norm.features
+norm.features
+```
+Save data:
+```{r}
+saveRDS(norm.features, "data/preprocessing/norm_features_v1.rds")
+```
+
+# Features selecting
+
+## Perform PCA
+
+```{r}
+pc <- prcomp(raw_features[ ,-1], scale = T)
+pc %>% summary()
+```
+## Compute correlation matrix
+
+### Raw features
+```{r}
+corrmat <- cor(raw_features[,-1])
+corrmat
+```
+Highcorr contains the first elements of all pairs of highly correlated features
+```{r}
+findCorrelation(corrmat, cutoff = 0.7, names = T, exact = T)
+```
+
+### Normalized features 
+
+```{r}
+corrmat.norm <- cor(norm.features[,-1])
+```
+Highcorr contains the first elements of all pairs of highly correlated features
+```{r}
+findCorrelation(corrmat.norm, cutoff = 0.7, names = T, exact = T)
+```
