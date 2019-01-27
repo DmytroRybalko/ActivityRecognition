@@ -1,0 +1,130 @@
+---
+title: "Activity 1: Working at Computer"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+
+library(tidyverse)
+source("../auxiliary_functions.R")
+```
+
+# 1.Create features 
+
+# 1.1 Read files  
+
+List of files:
+```{r}
+(all_files <- list.files("../data/raw", pattern = "*.csv", full.names = T))
+```
+
+Get list of necessary files (1 to 10):
+```{r}
+(my_files <- grep(paste0("\\b", "(\\d|\\d0)", "\\b"), all_files, value = TRUE))
+```
+
+## 1.2 Make common dataset from chosen files  
+First test ...
+```{r}
+grep("\\b[137]\\b", all_files, value = TRUE) %>% 
+  map_dfr( ~ transform_data(df = read.csv(.),
+                            user_id = str_extract(., "\\d+"),
+                            activ_id = 1, start_id = 1, end_id = nrow(.))) %>%
+  count(user_id)
+```
+
+### 3.1 Choose accectable data range
+
+**We need to choose range of "good" data for all user_id. For this let's build plots to visual estimation of data.**  
+Make dataset from  10 files for EDA:
+```{r, cache=TRUE}
+eda_df <- grep("\\b(\\d|\\d0)\\b", all_files, value = TRUE) %>% 
+  map_dfr( ~ transform_data(df = read.csv(.),
+                            user_id = str_extract(., "\\d+"),
+                            activ_id = 4, start_id = 1, end_id = nrow(.)))
+eda_df
+```
+Make plots to see raw data by three axis. Full range:
+```{r, cache=TRUE}
+eda_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+Data range by users:
+```{r}
+count(eda_df, user_id)
+```
+
+Overview left data range:
+```{r}
+eda_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    geom_vline(xintercept = 3700) +
+    coord_cartesian(xlim = c(0, 5000)) +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+  
+... and right data range:
+```{r}
+eda_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    geom_vline(xintercept = 22000) +
+    coord_cartesian(xlim = c(20000, 25000)) +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+
+Chose acceptable range:
+```{r, cache=TRUE}
+eda_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    geom_vline(xintercept = c(3700, 22000)) +
+    coord_cartesian(xlim = c(3700, 22000)) +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+
+**So, chosen range:**
+```{r}
+chosen.left.border <- 3700
+chosen.right.border <- 22000
+```
+
+### 3.2 Recalculate final dataset based on acceptable data range
+
+Make dataset
+```{r, cache=TRUE}
+pre_features_df <- grep("\\b(\\d|\\d0)\\b", all_files, value = TRUE) %>% 
+  map_dfr( ~ transform_data(df = read.csv(.),
+                            user_id = str_extract(., "\\d+"),
+                            activ_id = 1,
+                            start_id = chosen.left.border,
+                            end_id = chosen.right.border)) %>% 
+  select(-activity)
+pre_features_df
+```
+Build plot:
+```{r}
+pre_features_df %>% 
+  ggplot() + 
+    geom_line(aes(x = id, y = ax), color = "black") +
+    geom_line(aes(x = id, y = ay), color = "red") +
+    geom_line(aes(x = id, y = az), color = "green") +
+    facet_wrap(user_id ~ ., scales = "free", ncol = 2)
+```
+Save data into file  
+```{r, cache=TRUE}
+saveRDS(pre_features_df, "pre_features_activity1.rds")
+```
+

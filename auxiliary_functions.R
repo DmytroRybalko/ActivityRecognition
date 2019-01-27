@@ -1,4 +1,24 @@
 
+# This function selects the specified activity type parameter on chosen range
+transform_data <- function(df, user_id, activ_id, start_id, end_id) {
+  df %>% 
+    rename(id = X0, ax = 2, ay = 3, az = 4, activity = X1) %>% 
+    filter(activity == activ_id) -> step1
+  
+  # After filtering end_id will change so we need choose lowerest value
+  end_id <- min(end_id, nrow(step1))
+  
+  step1 %>% 
+    slice(start_id:end_id) %>% 
+    mutate(user_id = user_id, id = seq(1:(end_id - start_id + 1)))
+}
+# Test
+#transform_data(raw_user1, "1", 4, 100, 355)
+#transform_data(raw_user1, "1", 4, 1, nrow(raw_user1))
+
+
+
+#############################################################################
 # This function create dataframe with features for single user
 features.extract <- function(df) {
   
