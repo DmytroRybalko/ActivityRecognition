@@ -1,6 +1,6 @@
 ---
 title: "Draft Modelling"
-output: html_document
+output: html_notebook
 ---
 
 ```{r setup, include=FALSE}
@@ -44,35 +44,23 @@ Convert user_id value to factor:
 ```{r}
 raw_features <- raw_features %>% 
   mutate_at("user_id", ~factor(., levels = as.character(1:10)))
-str(raw_features)
+#str(raw_features)
 ```
-
 
 ## 1.2 Split data into a training and test sets
 
-### Var1
 ```{r}
-# set.seed(3000)
-# spl <- sample.split(raw_features$user_id, SplitRatio = 0.7)
+set.seed(3000)
+spl <- sample.split(raw_features$user_id, SplitRatio = 0.7)
 ```
 Now, let's create our training and testing sets using the subset function.
 ```{r}
-# train.data <- subset(raw_features, spl == TRUE)
-# test.data <- subset(raw_features, spl == FALSE)
-```
-
-### Var2
-
-Now, let's create our training and testing sets using the subset function.
-```{r}
-spl <- createDataPartition(raw_features$user_id, p = 0.7, list = F)
-train.data <- raw_features[spl,]
-test.data <- raw_features[-spl,]
+train.data <- subset(raw_features, spl == TRUE)
+test.data <- subset(raw_features, spl == FALSE)
 ```
 
 ## 3.Cross-validation   
 
-### rpart
 First, we need to define how many folds we want. We can do this using the trainControl function.  
 ```{r}
 numFolds <- trainControl(method = "cv", number = 10)
@@ -80,16 +68,15 @@ numFolds <- trainControl(method = "cv", number = 10)
   
 Then we need to pick the possible values for our cp parameter, using the expand.grid function. So we'll call it cpGrid, and then use expand.grid, where the only argument is .cp = seq(0.01,0.5,0.01). This will define our cp parameters to test as numbers from 0.01 to 0.5, in increments of 0.01.
 ```{r}
-# tuneGrid parameters for rpart
 cpGrid <- expand.grid(.cp = seq(0.01, 0.5, 0.01))
 ```
-
+  
 Now, we're ready to perform cross validation. 
 ```{r, cache=TRUE, eval=FALSE}
-train(user_id ~ ., data = train.data, method = "knn", trControl = numFolds, tuneGrid = tune.knn)
+#train(user_id ~ ., data = train.data, method = "rpart", trControl = numFolds, tuneGrid = cpGrid)
 ```
 The final value used for the model was cp = 0.1. This is the cp value we want to use in our CART model.  
-
+  
 So now let's create a new CART model with this value of cp, instead of the minbucket parameter.
 
 # 4.Classification algorithms
@@ -110,9 +97,8 @@ prp(base.CART)
 
 Now let's see how well our CART model does at making predictions for the **train** set.
 ```{r}
-predict.CART.train <- predict(base.CART, newdata = train.data, type = "class") #train.data[,-1]
+predict.CART.train <- predict(base.CART, newdata = train.data, type = "class")
 ```
-
 Now let's compute the accuracy of our model by building a confusion matrix.
 ```{r}
 confusionMatrix(reference = train.data$user_id, data = predict.CART.train,         
@@ -128,37 +114,8 @@ predict.CART.test <- predict(base.CART, newdata = test.data, type = "class")
 Now let's compute the accuracy of our model by building a confusion matrix.
 ```{r}
 confusionMatrix(reference = test.data$user_id, data = predict.CART.test,         
-                mode = "prec_recall")
+                mode = "prec_recall", dnn = c("Reference", "Prediction"))
 ```
-Try to make zeros at upper diagonale:
-```{r}
-confusionMatrix(reference = test.data$user_id, data = predict.CART.test,         
-                mode = "prec_recall",
-                prevalence = c("1" = 0.07, "2" = 0.07, "3" = 0, "4" = 0, "5" = 0,
-                               "6" = 0, "7" = 0, "8" = 0, "9" = 0, "10" = 0))
-```
-
-
-### Use table() function
-
-Make prediction
-```{r}
-#predict.CART.prob <- predict(base.CART, newdata = test.data, type = "prob")
-```
-
-Predict
-```{r}
-predict.CART <- as_tibble(predict(base.CART, newdata = test.data, type = "p"))
-#head(predict.CART)
-```
-
-Confusion matrix
-table(iris$Y, pdata$`1` > .5)
-
-```{r}
-table(test.data$user_id, predict.CART$`1` > 0.3)
-```
-
 
 ## 4.2 Randome Forest
 
@@ -193,100 +150,12 @@ MeanDecreaseGini
 
 ```{r}
  
-varImpPlot(rf.fit, n.var=35, main = "Variable Importance Plot", pch=16, scale = F)
+#varImpPlot(rf.fit, n.var=35, main = "Variable Importance Plot", pch=16, scale = F)
 ```
 
 # TODO Build bar chart!
 
-## 3. k-NN
-
-```{r}
-knn.fit <- train(user_id ~ ., data = train.data, method = "knn", preProcess = c("center", "scale"), tuneLength = 10, trControl = trainControl(method = "cv"))
-```
-
-Look inside
-```{r}
-knn.fit
-```
-
-Make prediction
-```{r}
-predict.knn <- predict(knn.fit, newdata = test.data)
-```
-
-See result (виправлена!)
-```{r}
-confusionMatrix(reference = test.data$user_id, data = predict.knn,         
-                mode = "prec_recall")
-```
-# !!! ВИПРАВИТИ МАТРИЦЮ!!!
-```{r}
-confusionMatrix(data = test.data$user_id, reference = predict.knn,         
-                mode = "prec_recall", dnn = c("Reference", "Prediction"))
-```
 
 
-### 3.1 pure k-NN
 
-Build model
-```{r}
-knn3.fit <- knn3(user_id ~ ., train.data , k = 5)
-```
-
-Make prediction:
-```{r}
-predict.knn3 <- predict(knn3.fit, newdata = test.data)
-```
-
-Confusion matrix:
-```{r}
-confusionMatrix(reference = test.data$user_id, data = predict.knn3,         
-                mode = "prec_recall", dnn = c("Reference", "Prediction"))
-```
-
-### 4 Logistic regression
-
-#### regLogistic	
-
-Build model
-```{r}
-logreg.fit <- train(user_id ~ ., data = train.data, method = "regLogistic", trControl = trainControl(method = "cv"))
-```
-
-Make prediction:
-```{r}
-predict.knn3 <- predict(knn3.fit, newdata = test.data)
-```
-
-Confusion matrix:
-```{r}
-confusionMatrix(reference = test.data$user_id, data = predict.knn3,         
-                mode = "prec_recall", dnn = c("Reference", "Prediction"))
-```
-
-#### base R
-```{r}
-logreg <- glm(user_id ~ ., data = train.data, family = binomial)
-```
-
-Now, let's look at our model using the summary function.
-```{r}
-summary(logreg)
-```
-
-Make prediction
-```{r}
-predict.logreg <- predict(logreg, newdata = test.data, type = "response")
-```
-
-See result:
-```{r}
-table(test.data$user_id, predict.logreg >= 0.7)
-```
-
-
-## Next steps:
-use knn without train
-use logreg
-how to increase recall?
 

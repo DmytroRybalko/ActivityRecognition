@@ -104,12 +104,16 @@ table(predict.train)
 #### Q: How to calculate TP, TN, FP, FN?
 
 ```{r}
-cm <- confusionMatrix(reference = trainset$Species, # actual data
-                data = predict.train,               # predicted data
+cm <- confusionMatrix(data = trainset$Species, # actual data
+                reference = predict.train,               # predicted data
                 mode = "prec_recall",               # choose recall-precise method
                 dnn = c("Reference", "Prediction")) # rows for actual data, columns - for predicted
 cm
 ```
+
+
+
+
 #### Q: What about threshold value? (prevalence parameter)
 
 ```{r}
@@ -117,7 +121,10 @@ confusionMatrix(reference = trainset$Species,
                 data = predict.train,         
                 mode = "prec_recall",         
                 dnn = c("Reference", "Prediction"),
-                prevalence = c("setosa" = 0.5, "versicolor" = 0.25, " virginica" = 0.25))
+                prevalence = c("setosa" = 0.33, "versicolor" = 0.33, " virginica" = 0.33))
+```
+```{r}
+table(trainset$Species)
 ```
 
 
@@ -131,11 +138,11 @@ confusionMatrix(reference = trainset$Species,
 
 Now let's see how well our CART model does at making predictions for the test set.
 ```{r}
-PredictCART <- predict(iris.CART, newdata = testset, type = "class")
+PredictCART <- predict(iris.CART, newdata = testset, type = "p")
 ```
 Now let's compute the accuracy of our model by building a confusion matrix.
 ```{r}
-confusionMatrix(reference = testset$Species, data = PredictCART,
+confusionMatrix(testset$Species, PredictCART,
                 mode = "prec_recall",               
                 dnn = c("Reference", "Prediction"))
 ```
