@@ -568,6 +568,12 @@ Version: 1.4.3
 Hash: c950c8ac85b81209635acb3ce21b4cce
 Requires: Rcpp, plyr, stringr
 
+Package: revealjs
+Source: CRAN
+Version: 0.9
+Hash: d33e5b244ff56eaec0dec87babea8730
+Requires: rmarkdown
+
 Package: rgl
 Source: CRAN
 Version: 0.99.16

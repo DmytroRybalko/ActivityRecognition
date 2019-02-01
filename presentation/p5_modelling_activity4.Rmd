@@ -1,0 +1,179 @@
+---
+title: "Modelling"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, fig.width = 12)
+
+library(tidyverse)
+library(caTools)
+library(ROCR)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(caret)
+library(e1071)
+```
+
+# Agenda:
+
+1) Data preparing  
+2) Split into train and test sets
+3) Run decision tree 
+4) Run random forest
+5) Run k-NN  
+
+# 1.Data preparing
+
+Load features:
+```{r}
+raw_features <- readRDS("../data/preprocessing/features_v1.rds") %>% 
+  mutate_at("user_id", ~factor(., levels = as.character(1:10)))
+```
+
+Data looks like:
+```{r}
+str(raw_features)
+```
+
+# 2.Split data into a training and test sets
+
+```{r}
+set.seed(3000)
+spl <- sample.split(raw_features$user_id, SplitRatio = 0.7)
+```
+
+Now, let's create our training and testing sets using the subset function.
+```{r}
+train.data <- subset(raw_features, spl == TRUE)
+test.data <- subset(raw_features, spl == FALSE)
+```
+
+# 4. Decision Tree (DS)
+
+### 4.1 Create the model with train data!
+
+```{r}
+base.CART <- rpart(user_id ~ ., data = train.data, method = "class", cp = 0.1)
+```
+  
+Now let's plot our tree using the prp function
+```{r}
+prp(base.CART)
+```
+
+A named numeric vector giving the importance of each variable:
+```{r}
+matrix(base.CART$variable.importance, dimnames = list(names(base.CART$variable.importance)))
+```
+
+Tree's parameters
+```{r}
+ base.CART$control
+```
+
+### 4.2 Make prediction on train data
+
+Now let's see how well our CART model does at making predictions for the **train** set.
+```{r}
+predict.CART.train <- predict(base.CART, newdata = train.data, type = "class")
+```
+Now let's compute the accuracy of our model by building a confusion matrix.
+```{r}
+confusionMatrix(reference = train.data$user_id, data = predict.CART.train,         
+                mode = "prec_recall", dnn = c("Reference", "Prediction"))
+```
+
+### 4.3 Make prediction on test data
+
+Now let's see how well our CART model does at making predictions for the **test** set.
+```{r}
+predict.CART.test <- predict(base.CART, newdata = test.data, type = "class")
+```
+Now let's compute the accuracy of our model by building a confusion matrix.
+```{r}
+confusionMatrix(reference = test.data$user_id, data = predict.CART.test,         
+                mode = "prec_recall", dnn = c("Reference", "Prediction"))
+```
+
+# 5. Randome Forest
+
+Build the model
+```{r}
+random.forest <- randomForest(user_id ~ ., data = train.data, nodesize = 25, ntree = 200, importance = T)
+```
+
+Make prediction
+```{r}
+predict.RF.test <- predict(random.forest, newdata = test.data)
+```
+
+Confusion matrix:
+```{r}
+confusionMatrix(test.data$user_id, predict.RF.test,         
+                mode = "prec_recall", dnn = c("Reference", "Prediction"))
+```
+
+Random Forest importance parameter:
+```{r}
+#nn <- rownames(random.forest$importance)
+MeanDecreaseGini <- random.forest$importance %>%
+  as_tibble(rownames = "features") %>% 
+  select(features, MeanDecreaseGini) %>% 
+  arrange(desc(MeanDecreaseGini))
+MeanDecreaseGini
+```
+
+... and plot:
+```{r}
+varImpPlot(random.forest, main = "Variable Importance Plot", pch=16, scale = T)
+```
+
+## 6. k-NN
+
+Build model 
+```{r}
+knn.fit <- train(user_id ~ ., data = train.data, method = "knn", preProcess = c("center", "scale"), tuneLength = 10, trControl = trainControl(method = "cv"))
+```
+
+Look inside
+```{r}
+knn.fit
+```
+
+Make prediction
+```{r}
+predict.knn <- predict(knn.fit, newdata = test.data)
+```
+
+Confusion matrix:
+```{r}
+confusionMatrix(reference = test.data$user_id, data = predict.knn,         
+                mode = "prec_recall")
+```
+
+**Build model without scaling and centering**
+```{r}
+knn.fit0 <- train(user_id ~ ., data = train.data, method = "knn", tuneLength = 10, trControl = trainControl(method = "cv")) #preProcess = c("center", "scale")
+```
+
+Look inside
+```{r}
+knn.fit0
+```
+
+Make prediction
+```{r}
+predict.knn0 <- predict(knn.fit0, newdata = test.data)
+```
+
+Confusion matrix:
+```{r}
+confusionMatrix(reference = test.data$user_id, data = predict.knn0,         
+                mode = "prec_recall")
+```
+
+### About cp parameter:
+
+> 'cp' is the complexity parameter that measures the trade-off between model complexity and accuracy on the training set. A smaller cp value leads to a bigger tree, so a smaller cp value might over-fit the model to the training set. But a cp value that's too large might build a model that's too simple. Close to labda parameter

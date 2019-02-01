@@ -1,0 +1,98 @@
+---
+title: "Data exploration"
+output: slidy_presentation 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(zoo)
+```
+
+
+```{r}
+data4features <- readRDS("../data/preprocessing/pre_features_activity4.rds")
+```
+Choose user 1 data:
+```{r}
+user1 <- filter(data4features, user_id == 1)
+```
+
+# 1. Set sliding window parameters
+   
+The raw data is divided into identification intervals of 100 samples width with 50% overlap:  
+Sampling freaquency: $f_s = 52 Hz$;  
+Number of samples (sliding window length) $N = 100$;  
+Length of data frame: $L = N / f_s$ (2 sec max!)
+```{r}
+sample_Hz <- 52
+sample_N <- 100 
+overlap <- 0.5
+length_DF <- round(sample_N / sample_Hz)
+```
+
+# 2. Fast Fourier Transformation 
+
+Build spectrogramma on raw data 
+```{r}
+user1x.spec <- spectrum(user1$ax, log = "no", span = 10, plot = FALSE, detrend = T, demean = F)
+spu1_x <- user1x.spec$freq * sample_Hz
+spu1_y <- 2*user1x.spec$spec
+plot(spu1_y ~ spu1_x, xlab = "frequency", ylab = "spectral density", type = "l", xlim = c(0, 10))
+```
+
+Let's make detrending signal by using diff() as suggest [here](https://stackoverflow.com/questions/14010605/fast-fourier-transform-in-r?rq=1)
+```{r}
+user1x.spec <- spectrum(diff(user1$ax), log = "no", span = 50, plot = FALSE, detrend = T, demean = T)
+spu1_x <- user1x.spec$freq * sample_Hz
+spu1_y <- 2*user1x.spec$spec
+plot(spu1_y ~ spu1_x, xlab = "frequency", ylab = "spectral density", type = "l", xlim = c(0, 12))
+```
+
+# 3. Peak detection
+
+Do some investigation
+```{r}
+df_peak <- user1[1:100,]
+ggplot(df_peak, aes(x = id, y = ax)) +
+  geom_line(color = "red")
+```
+
+I've found this post here  
+[Data Smoothing and Peak Detection](https://rpubs.com/mengxu/peak_detection)
+```{r}
+x <- df_peak$id
+y <- df_peak$ax
+
+argmax <- function(x, y, w=1, ...) {
+  #require(zoo)
+  n <- length(y)
+  y.smooth <- loess(y ~ x, ...)$fitted
+  y.max <- rollapply(zoo(y.smooth), 2*w+1, max, align="center")
+  delta <- y.max - y.smooth[-c(1:w, n+1-1:w)]
+  i.max <- which(delta <= 0) + w
+  list(x=x[i.max], i=i.max, y.hat=y.smooth)
+}
+
+test.find.peak <- function(w, span) {
+  peaks <- argmax(x, y, w=w, span=span)
+
+  plot(x, y, cex=0.75, col="Gray", main=paste("w = ", w, ", span = ", span, sep=""))
+  lines(x, peaks$y.hat,  lwd=2) #$
+  y.min <- min(y)
+  sapply(peaks$i, function(i) lines(c(x[i],x[i]), c(y.min, peaks$y.hat[i]), col="Red", lty=2))
+  points(x[peaks$i], peaks$y.hat[peaks$i], col="Red", pch=19, cex=1.25)
+}
+```
+
+View plot:
+```{r}
+test.find.peak(4, 0.05)
+```
+
+Change some parameters
+```{r}
+test.find.peak(3, 0.1)
+```
+

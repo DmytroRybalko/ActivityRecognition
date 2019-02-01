@@ -53,7 +53,7 @@ Get list of necessary files (1 to 10):
 **Test read file**
 ```{r, cache=TRUE}
 raw_user1 <- read.csv("data/raw/1.csv")
-raw_user1[1:10g]
+raw_user1[1:10]
 ```
 
 ## 2. Transform data:  

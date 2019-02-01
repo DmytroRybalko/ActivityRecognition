@@ -1,0 +1,42 @@
+---
+title: "What to do next?"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# TODO
+
+##1) Перебудувати структуру репо:
+
+- окрема тека для чорнеток і для активітіз
+- файл draft_iris перенести в Analytic Edge проект
+  
+##2) Підготовка даних
+
+- розібратися як аналізувати частотні характеристики сигналу (консультація з Янкелевичем)
+- оцінити навігаційні складові сигналу (швидкість, g)
+- як можна виокремити паттерни дихання, серцевого ритму, голосу
+
+## 3) Аналіз фіч
+
+- погратися з шириною slide window і оверлепом;
+- PCA, cormatrix - оцінка впливовості окремиї фіч
+- якщо викинуту впливові фічі і подивитися на решту?
+- 
+
+## 4) Алгоритми
+
+- побудувати модель для випадку one-vs-all коли є клас 1, а інші - 0 і порівняти precision/recall
+- спробувати логрегресію
+- як вибирати threshold для обраних класів мультикласової класифікації
+- як приліпити ROC-AUC?
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+

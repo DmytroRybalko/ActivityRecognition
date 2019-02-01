@@ -12,6 +12,9 @@ library(tidyverse)
 # Project describe
 
 Задача: обучившись на одном человеке, модель должна уметь отличить его от других. То есть когда подаём на вход его записи - выдаё 1, во всех остальных случаях - 0
+  
+[Activity Recognition from Single Chest-Mounted Accelerometer Data Set](https://archive.ics.uci.edu/ml/datasets/Activity+Recognition+from+Single+Chest-Mounted+Accelerometer)
+  
 
 ## Dataset Information
    --- Data are separated by participant
@@ -85,79 +88,4 @@ Skewness
 + instantaneous frequency  ()
   
 В якості фіч для розпізнання активностей між собою спробувати використати навігаційні параметри: швидкість (модуль швидкості), вектор сили тяжіння. Це можна використати для розрізнення режиму ходіння та підйому по сходах.
-
-## Questions  
-  
-1) How to make samples from series data?  
-What does it mean: "The feature vectors were built from 50%-overlapping sliding windows with 512 samples. Since the sampling frequency was 76.25 Hz, each data frame lasted 6.7 seconds, with every new frame available every 3.35 s"
-  
-## Initial data  
-Feature Extraction: The raw data is divided into identification intervals of 100 samples width with 50% overlap. 
-  
-Sampling freaquency: $f_s = 52 Hz$;  
-Number of samples (sliding window length): N = 100;  
-Length of data frame: $L = N \over f_s$ 2 sec max!  
-
-
-# **Work with data**  
-  
-Activity names:
-```{r}
-activity_vec <- c("Working_at_Computer",
-                  "Standing_Up+Walking+Going_up-down_stairs",
-                  "Standing",
-                  "Walking",
-                  "Going_Up-Down_Stairs",
-                  "Walking+Talking",
-                  "Talking_while_Standing")
-```
-Load raw data from one file to explore structure
-```{r, cache=TRUE}
-person1 <- read.csv("data/raw/1.csv")
-person1
-```
-Replace activities numbers with names:
-```{r}
-X1_to_activity <- seq(1:7)
-names(X1_to_activity) <- activity_vec
-```
-Make data variables more readable:
-```{r}
-person1 %>% 
-  filter(X1 > 0) %>% 
-  rename(ax = X1502, ay = X2215, az = X2153) %>% 
-  mutate(activity = names(X1_to_activity[X1])) %>% 
-  select(-X0, -X1) -> person1
-person1
-```
-## Activities summary:
-```{r}
-person1 %>% 
-  count(activity) %>% 
-  mutate(second = n / 52)
-```
-
-
-## Let's make graphs to see data patterns for each activity:
-  
-### Single activity 1
-
-```{r}
-person1 %>% 
-  filter(activity == 'Working_at_Computer') %>% 
-    ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
-    geom_line() +
-    coord_cartesian(xlim = c(2500, 30000)) 
-    #scale_x_log10()
-```
-
-```{r}
-person1 %>% #group = activity
-  filter(activity != "Standing_Up+Walking+Going_up-down_stairs") %>%   
-  ggplot(aes(x = seq(1:nrow(.)), y = ax)) +
-    geom_line() +
-    facet_wrap(activity ~ ., scales = "free")
-```
-
-
 

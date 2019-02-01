@@ -31,8 +31,8 @@ library(e1071)
 ## Load features:
 
 ```{r}
-raw_features <- readRDS("data/preprocessing/features_v1.rds")
-norm_features <- readRDS("data/preprocessing/norm_features_v1.rds")
+raw_features <- readRDS("features_activity4_v1.rds")
+norm_features <- readRDS("features_activity4_v1.rds")
 ```
 
 Data looks like:
@@ -44,7 +44,7 @@ Convert user_id value to factor:
 ```{r}
 raw_features <- raw_features %>% 
   mutate_at("user_id", ~factor(., levels = as.character(1:10)))
-#str(raw_features)
+str(raw_features)
 ```
 
 ## 1.2 Split data into a training and test sets
@@ -53,6 +53,7 @@ raw_features <- raw_features %>%
 set.seed(3000)
 spl <- sample.split(raw_features$user_id, SplitRatio = 0.7)
 ```
+
 Now, let's create our training and testing sets using the subset function.
 ```{r}
 train.data <- subset(raw_features, spl == TRUE)
@@ -73,7 +74,7 @@ cpGrid <- expand.grid(.cp = seq(0.01, 0.5, 0.01))
   
 Now, we're ready to perform cross validation. 
 ```{r, cache=TRUE, eval=FALSE}
-#train(user_id ~ ., data = train.data, method = "rpart", trControl = numFolds, tuneGrid = cpGrid)
+train(user_id ~ ., data = train.data, method = "rpart", trControl = numFolds, tuneGrid = cpGrid)
 ```
 The final value used for the model was cp = 0.1. This is the cp value we want to use in our CART model.  
   
@@ -88,6 +89,7 @@ So now let's create a new CART model with this value of cp, instead of the minbu
 ```{r}
 base.CART <- rpart(user_id ~ ., data = train.data, method = "class", cp = 0.1)
 ```
+
 Now let's plot our tree using the prp function
 ```{r}
 prp(base.CART)
@@ -99,6 +101,7 @@ Now let's see how well our CART model does at making predictions for the **train
 ```{r}
 predict.CART.train <- predict(base.CART, newdata = train.data, type = "class")
 ```
+
 Now let's compute the accuracy of our model by building a confusion matrix.
 ```{r}
 confusionMatrix(reference = train.data$user_id, data = predict.CART.train,         
@@ -111,6 +114,7 @@ Now let's see how well our CART model does at making predictions for the **test*
 ```{r}
 predict.CART.test <- predict(base.CART, newdata = test.data, type = "class")
 ```
+
 Now let's compute the accuracy of our model by building a confusion matrix.
 ```{r}
 confusionMatrix(reference = test.data$user_id, data = predict.CART.test,         
@@ -134,10 +138,12 @@ See result
 confusionMatrix(reference = test.data$user_id, data = predict.RF.test,         
                 mode = "prec_recall", dnn = c("Reference", "Prediction"))
 ```
+
 Plot randm forest:
 ```{r}
 plot(random.forest)
 ```
+
 Random Forest importance parameter:
 ```{r}
 #nn <- rownames(random.forest$importance)
@@ -147,15 +153,4 @@ MeanDecreaseGini <- random.forest$importance %>%
   arrange(desc(MeanDecreaseGini))
 MeanDecreaseGini
 ```
-
-```{r}
- 
-#varImpPlot(rf.fit, n.var=35, main = "Variable Importance Plot", pch=16, scale = F)
-```
-
-# TODO Build bar chart!
-
-
-
-
 
